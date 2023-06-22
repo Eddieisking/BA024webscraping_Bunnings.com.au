@@ -33,7 +33,7 @@ class ExcelPipeline:
         pass
 
     def close_spider(self, spider):
-        self.wb.save('castoramapl.xlsx')
+        self.wb.save('Bunnings.xlsx')
 
     def process_item(self, item, spider):
         review_id = item.get('review_id', '')

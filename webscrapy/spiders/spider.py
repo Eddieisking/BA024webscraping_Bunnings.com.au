@@ -4,6 +4,7 @@ Author: Hào Cui
 Date: 06/22/2023
 """
 import json
+import math
 import re
 
 import scrapy
@@ -14,7 +15,7 @@ from webscrapy.items import WebscrapyItem
 
 class SpiderSpider(scrapy.Spider):
     name = "spider"
-    allowed_domains = ["www.castorama.pl", "api.bazaarvoice.com"]
+    allowed_domains = ["www.bunnings.com.au", "api.bazaarvoice.com"]
     headers = {}  #
 
     def start_requests(self):
@@ -26,7 +27,7 @@ class SpiderSpider(scrapy.Spider):
         # from search words to generate product_urls
         for keyword in keywords:
             push_key = {'keyword': keyword}
-            search_url = f'https://www.castorama.pl/search?term={keyword}'
+            search_url = f'https://www.bunnings.com.au/search/products?q={keyword}&sort=BoostOrder'
 
             yield Request(
                 url=search_url,
@@ -39,66 +40,66 @@ class SpiderSpider(scrapy.Spider):
     def parse(self, response, **kwargs):
 
         # Extract the pages of product_urls
-        page = response.xpath('//p[@data-test-id="search-options-total-results"]/text()')[0].extract()
-        page_number = int(''.join(filter(str.isdigit, page)))
-        pages = (page_number // 24) + 1
+        product_counts = response.xpath('//*[@id="main"]//div[@class="totalResults"]/p/text()')[0].extract()
+        product_counts = int(re.findall(r'\d+', product_counts)[0])
+        page_size = 36
+        pages = math.ceil(product_counts / page_size)
 
         # Based on pages to build product_urls
         keyword = kwargs['keyword']
-        product_urls = [f'https://www.castorama.pl/search?page={page}&term={keyword}' for page
-                        in range(1, pages+1)]
+        # product_urls = [f'https://www.bunnings.com.au/search/products?q={keyword}&sort=BoostOrder&page={page}&pageSize={page_size}' \
+        #                 for page in range(1, pages)]
+
+        # test page = 1
+        product_urls = [
+            f'https://www.bunnings.com.au/search/products?q={keyword}&sort=BoostOrder&page={page}&pageSize={page_size}' \
+            for page in range(1, 2)]
 
         for product_url in product_urls:
             yield Request(url=product_url, callback=self.product_parse)
 
     def product_parse(self, response: Request, **kwargs):
 
-        product_list = response.xpath('//*[@id="content"]//main//ul/li')
+        product_list = response.xpath('//*[@id="main"]//div[@class="container-main"]//article')
 
         for product in product_list:
-            product_href = product.xpath('.//div[@data-test-id="product-panel"]/a/@href')[0].extract()
-            product_detailed_url = f'https://www.castorama.pl{product_href}'
+            product_href = product.xpath('.//div[@data-testid="productTileContainer"]/a/@href')[0].extract()
+            product_detailed_url = f'https://www.bunnings.com.au{product_href}'
             yield Request(url=product_detailed_url, callback=self.product_detailed_parse)
 
     def product_detailed_parse(self, response, **kwargs):
 
-        product_id = response.xpath('.//*[@id="product-details"]//td[@data-test-id="product-ean-spec"]/text()')[
-            0].extract()
+        product_item_number = response.xpath('//*[@id="main"]//div[@class="desktopProductDetails"]//p['
+                                             '@data-locator="product-item-number"]/text()')[0].extract()
+        product_id = re.search(r'\d+', product_item_number).group()
 
         # Product reviews url
-        product_detailed_href = f'https://api.bazaarvoice.com/data/batch.json?passkey' \
-                                f'=cauXqtM5OxUGSckj1VCPUOc1lnChnQoTYXBE5j082Xuc0&apiversion=5.5&displaycode=17031' \
-                                f'-pl_pl&resource.q0=reviews&filter.q0=isratingsonly%3Aeq%3Afalse&filter.q0=productid' \
-                                f'%3Aeq%3A{product_id}&filter.q0=contentlocale%3Aeq%3Apl*%2Cpl_PL&sort.q0=rating' \
-                                f'%3Adesc&stats.q0=reviews&filteredstats.q0=reviews&include.q0=authors%2Cproducts' \
-                                f'%2Ccomments&filter_reviews.q0=contentlocale%3Aeq%3Apl*%2Cpl_PL' \
-                                f'&filter_reviewcomments.q0=contentlocale%3Aeq%3Apl*%2Cpl_PL&filter_comments.q0' \
-                                f'=contentlocale%3Aeq%3Apl*%2Cpl_PL&limit.q0=8&offset.q0=0&limit_comments.q0=3 '
+        product_reviews_url = f'https://api.bazaarvoice.com/data/reviews.json?resource=reviews&action' \
+                              f'=REVIEWS_N_STATS&filter=productid%3Aeq%3A{product_id}&filter=contentlocale%3Aeq%3Aen' \
+                              f'*%2Cen_AU%2Cen_AU&filter=isratingsonly%3Aeq%3Afalse&filter_reviews=contentlocale' \
+                              f'%3Aeq%3Aen*%2Cen_AU%2Cen_AU&include=authors%2Cproducts&filteredstats=reviews&Stats' \
+                              f'=Reviews&limit=6&offset=0&sort=helpfulness%3Adesc%2Ctotalpositivefeedbackcount' \
+                              f'%3Adesc&passkey=caUZMUAJ5mm8n5r7EtVHRt5QhZFVEPcUKge0N3CDWAZFc&apiversion=5.5' \
+                              f'&displaycode=10414-en_au '
 
-        if product_detailed_href:
-            yield Request(url=product_detailed_href, callback=self.review_parse)
+        if product_reviews_url:
+            yield Request(url=product_reviews_url, callback=self.review_parse)
 
     def review_parse(self, response: Request, **kwargs):
 
         datas = json.loads(response.body)
-        batch_results = datas.get('BatchedResults', {})
 
         offset_number = 0
         limit_number = 0
         total_number = 0
 
-        if "q1" in batch_results:
-            result_key = "q1"
-        else:
-            result_key = "q0"
-
-        offset_number = batch_results.get(result_key, {}).get('Offset', 0)
-        limit_number = batch_results.get(result_key, {}).get('Limit', 0)
-        total_number = batch_results.get(result_key, {}).get('TotalResults', 0)
+        offset_number = datas.get('Offset')
+        limit_number = datas.get('Limit')
+        total_number = datas.get('TotalResults')
 
         for i in range(limit_number):
             item = WebscrapyItem()
-            results = batch_results.get(result_key, {}).get('Results', [])
+            results = datas.get('Results', [])
 
             try:
                 item['review_id'] = results[i].get('Id', 'N/A')
@@ -117,6 +118,5 @@ class SpiderSpider(scrapy.Spider):
 
         if (offset_number + limit_number) < total_number:
             offset_number += limit_number
-            next_page = re.sub(r'limit.q0=\d+&offset.q0=\d+', f'limit.q0={30}&offset.q0={offset_number}', response.url)
+            next_page = re.sub(r'limit=\d+&offset=\d+', f'limit={30}&offset={offset_number}', response.url)
             yield Request(url=next_page, callback=self.review_parse)
-

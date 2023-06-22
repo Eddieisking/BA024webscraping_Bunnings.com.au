@@ -5,7 +5,7 @@
 """
 import requests
 
-proxy_url = 'https://www.stormproxies.cn/web_v1/ip/get-ip?app_key=64318690cd8b0c33d643b078d3974ebf&pt=9&num=20&cc=PL&protocol=1&format=txt&nr=%5Cr%5Cn'
+proxy_url = 'https://www.stormproxies.cn/web_v1/ip/get-ip?app_key=64318690cd8b0c33d643b078d3974ebf&pt=9&num=50&cc=AU&protocol=1&format=txt&nr=%5Cr%5Cn'
 proxy_text = 'proxy_text.txt'
 
 response = requests.get(proxy_url)
