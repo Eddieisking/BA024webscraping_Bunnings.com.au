@@ -133,7 +133,7 @@ PROXIES_FILE = 'proxy_text.txt'
 DOWNLOADER_MIDDLEWARES = {
     # "webscrapy.middlewares.SeleniumMiddleware": 90,
     "webscrapy.middlewares.WebscrapyDownloaderMiddleware": 100,
-    'webscrapy.middlewares.RotateProxyMiddleware': 91,
+    # 'webscrapy.middlewares.RotateProxyMiddleware': 91,
 }
 
 # Enable or disable extensions
