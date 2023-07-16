@@ -97,7 +97,7 @@ class SpiderSpider(scrapy.Spider):
             try:
                 item['review_id'] = results[i].get('Id', 'N/A')
                 item['product_name'] = product_name
-                item['customer_name'] = results[i].get('UserNickname', 'Ananymous')
+                item['customer_name'] = results[i].get('UserNickname', 'Ananymous') if results[i].get('UserNickname', 'Ananymous') else 'Ananymous'
                 item['customer_rating'] = results[i].get('Rating', 'N/A')
                 item['customer_date'] = results[i].get('SubmissionTime', 'N/A')
                 item['customer_review'] = results[i].get('ReviewText', 'N/A')

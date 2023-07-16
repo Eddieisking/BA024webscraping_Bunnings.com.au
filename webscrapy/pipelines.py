@@ -128,12 +128,10 @@ class DatabasePipeline:
     def __init__(self):
         self.conn = pymysql.connect(user="fqmm26", password="boston27", host="myeusql.dur.ac.uk", database="Pfqmm26_BA024")
         self.cursor = self.conn.cursor()
-        self.data = []
 
     def close_spider(self, spider):
-        if len(self.data) > 0:
-            self.sql_write()
-        # self.cursor.close()
+        self.conn.commit()
+        self.cursor.close()
         self.conn.close()
 
     def process_item(self, item, spider):
@@ -142,6 +140,7 @@ class DatabasePipeline:
         except Error as e:
             print(f"Error: {e}")
             self.reconnect()
+
         review_id = item.get('review_id', '')
         product_name = item.get('product_name', '')
         customer_name = item.get('customer_name', '')
@@ -154,20 +153,16 @@ class DatabasePipeline:
         product_name_en = product_name
         customer_review_en = customer_review
 
-        self.data.append((review_id, product_name, customer_name, customer_rating, customer_date, customer_review, customer_support, customer_disagree, product_name_en, customer_review_en))
-
-        if len(self.data) == 10:
-            self.sql_write()
-            self.data.clear()
-
-        return item
-
-    def sql_write(self):
-        self.cursor.executemany(
-            "insert into bunnings_en (review_id, product_name, customer_name, customer_rating, customer_date, customer_review, customer_support, customer_disagree, product_name_en, customer_review_en) values(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            self.data
+        self.cursor.execute(
+            "INSERT INTO bunnings_en (review_id, product_name, customer_name, customer_rating, customer_date, "
+            "customer_review, customer_support, customer_disagree, product_name_en, customer_review_en) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (review_id, product_name, customer_name, customer_rating, customer_date, customer_review,
+             customer_support, customer_disagree, product_name_en, customer_review_en)
         )
         self.conn.commit()
+
+        return item
 
     def reconnect(self):
         try:
@@ -175,4 +170,5 @@ class DatabasePipeline:
             print("Reconnected to the database.")
         except Error as e:
             print(f"Error reconnecting to the database: {e}")
+
 
