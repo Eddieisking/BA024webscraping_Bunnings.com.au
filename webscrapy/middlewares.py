@@ -123,43 +123,98 @@ class WebscrapyDownloaderMiddleware:
     def spider_opened(self, spider):
         spider.logger.info("Spider opened: %s" % spider.name)
 
+# class RotateProxyMiddleware:
+#     def __init__(self, proxies_file):
+#         self.proxies_file = proxies_file
+#         self.proxies = self.load_proxies()
+#         self.current_proxy = None
+#
+#     @classmethod
+#     def from_crawler(cls, crawler):
+#         proxies_file = crawler.settings.get('PROXIES_FILE')
+#         return cls(proxies_file)
+#
+#     def load_proxies(self):
+#         with open(self.proxies_file, 'r') as file:
+#             proxies = file.read().splitlines()
+#         return proxies
+#
+#     def process_request(self, request, spider):
+#         if not self.current_proxy:
+#             self.current_proxy = self.get_random_proxy()
+#
+#         request.meta['proxy'] = self.current_proxy
+#         print('current_proxy')
+#         print(self.current_proxy)
+#
+#     def process_response(self, request, response, spider):
+#         if response.status == 403:
+#             self.remove_current_proxy()
+#             self.current_proxy = self.get_random_proxy()
+#             new_request = request.copy()
+#             new_request.dont_filter = True  # Disable duplicate request filtering
+#             return new_request
+#         elif response.status == 307:
+#             self.remove_current_proxy()
+#             self.current_proxy = self.get_random_proxy()
+#             new_request = request.copy()
+#             new_request.dont_filter = True  # Disable duplicate request filtering
+#             return new_request
+#         return response
+#
+#     def process_exception(self, request, exception, spider):
+#         if isinstance(exception, IgnoreRequest):
+#             # Handle IgnoreRequest exceptions
+#             if getattr(exception, 'response', None) is not None:
+#                 return self.process_response(request, exception.response, spider)
+#             else:
+#                 # IgnoreRequest without a response, re-raise the exception
+#                 raise exception
+#         elif isinstance(exception, NotConfigured):
+#             # NotConfigured exception, re-raise it
+#             raise exception
+#         else:
+#             # Handle other exceptions
+#             self.remove_current_proxy()
+#             self.current_proxy = self.get_random_proxy()
+#             new_request = request.copy()
+#             new_request.dont_filter = True  # Disable duplicate request filtering
+#             return new_request
+#
+#     def get_random_proxy(self):
+#         if not self.proxies:
+#             self.proxies = self.load_proxies()  # Reload proxies from the file if the list is empty
+#         return random.choice(self.proxies)
+#
+#     def remove_current_proxy(self):
+#         if self.current_proxy in self.proxies:
+#             self.proxies.remove(self.current_proxy)
+
+"""In the following code, just need to change self.current_proxy to use new proxy"""
 class RotateProxyMiddleware:
-    def __init__(self, proxies_file):
-        self.proxies_file = proxies_file
-        self.proxies = self.load_proxies()
-        self.current_proxy = None
+    def __init__(self):
+        self.current_proxy = "http://storm-stst123_area-AU:123123@proxy.stormip.cn:1000"
+        self.max_retries = 3
 
     @classmethod
     def from_crawler(cls, crawler):
-        proxies_file = crawler.settings.get('PROXIES_FILE')
-        return cls(proxies_file)
-
-    def load_proxies(self):
-        with open(self.proxies_file, 'r') as file:
-            proxies = file.read().splitlines()
-        return proxies
+        return cls()
 
     def process_request(self, request, spider):
-        if not self.current_proxy:
-            self.current_proxy = self.get_random_proxy()
-
         request.meta['proxy'] = self.current_proxy
         print('current_proxy')
         print(self.current_proxy)
 
     def process_response(self, request, response, spider):
         if response.status == 403:
-            self.remove_current_proxy()
-            self.current_proxy = self.get_random_proxy()
-            new_request = request.copy()
-            new_request.dont_filter = True  # Disable duplicate request filtering
-            return new_request
-        elif response.status == 307:
-            self.remove_current_proxy()
-            self.current_proxy = self.get_random_proxy()
-            new_request = request.copy()
-            new_request.dont_filter = True  # Disable duplicate request filtering
-            return new_request
+            retries = request.meta.get('retry_times', 0)
+            if retries < 3:
+                new_request = request.copy()
+                new_request.dont_filter = True  # Disable duplicate request filtering
+                new_request.meta['retry_times'] = retries + 1
+                return new_request
+            else:
+                self.save_unable_to_access(request.url)
         return response
 
     def process_exception(self, request, exception, spider):
@@ -175,17 +230,15 @@ class RotateProxyMiddleware:
             raise exception
         else:
             # Handle other exceptions
-            self.remove_current_proxy()
-            self.current_proxy = self.get_random_proxy()
-            new_request = request.copy()
-            new_request.dont_filter = True  # Disable duplicate request filtering
-            return new_request
+            retries = request.meta.get('retry_times', 0)
+            if retries < self.max_retries:
+                new_request = request.copy()
+                new_request.dont_filter = True  # Disable duplicate request filtering
+                new_request.meta['retry_times'] = retries + 1
+                return new_request
+            else:
+                self.save_unable_to_access(request.url)
 
-    def get_random_proxy(self):
-        if not self.proxies:
-            self.proxies = self.load_proxies()  # Reload proxies from the file if the list is empty
-        return random.choice(self.proxies)
-
-    def remove_current_proxy(self):
-        if self.current_proxy in self.proxies:
-            self.proxies.remove(self.current_proxy)
+    def save_unable_to_access(self, url):
+        with open("unable to access.txt", "a") as file:
+            file.write(f"Unable to access: {url}\n")
