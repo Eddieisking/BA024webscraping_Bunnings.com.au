@@ -16,24 +16,21 @@ from webscrapy.items import WebscrapyItem
 class SpiderSpider(scrapy.Spider):
     name = "spider"
     allowed_domains = ["www.bunnings.com.au", "api.bazaarvoice.com"]
-    headers = {}  #
+    headers = {}  
 
     def start_requests(self):
         # keywords = ['dewalt', 'Stanley', 'Black+Decker', 'Craftsman', 'Porter-Cable', 'Bostitch', 'Facom', 'MAC Tools', 'Vidmar', 'Lista', 'Irwin Tools', 'Lenox', 'Proto', 'CribMaster', 'Powers Fasteners', 'cub-cadet', 'hustler', 'troy-bilt', 'rover', 'BigDog Mower', 'MTD']
         exist_keywords = ['dewalt', 'Stanley', 'Irwin', 'Black+Decker', 'Bostitch', 'Lenox']
+        
         # company = 'Stanley Black and Decker'
-
         # from search words to generate product_urls
         for keyword in exist_keywords:
             push_key = {'keyword': keyword}
             search_url = f'https://www.bunnings.com.au/search/products?q={keyword}&sort=BoostOrder'
-
             yield Request(
                 url=search_url,
                 callback=self.parse,
                 cb_kwargs=push_key,
-                # meta={'proxy':'socks5://127.0.0.1:10110'},
-                # headers=self.headers
             )
 
     def parse(self, response, **kwargs):
@@ -67,14 +64,12 @@ class SpiderSpider(scrapy.Spider):
         product_item_number = response.xpath('//p[@data-locator="product-item-number"]/text()')[-1].extract()
         product_id = re.search(r'\d+', product_item_number).group()
         product_name = response.xpath('//h1[@data-locator="product-title"]/text()')[0].extract()
-
         product_detail = response.xpath('//div[@data-locator="productSpecificationContainer"]')
         product_model = 'N/A'
 
         for product in product_detail:
             attr = product.xpath('./div[1]/text()')[0].extract()
             value = product.xpath('./div[2]/text()')[0].extract()
-
             if attr == "Model Number":
                 product_model = value if value else 'N/A'
 
@@ -94,21 +89,17 @@ class SpiderSpider(scrapy.Spider):
         product_name = response.meta['product_name']
         product_brand = response.meta['product_brand']
         product_model = response.meta['product_model']
-
         datas = json.loads(response.body)
-
         offset_number = 0
         limit_number = 0
         total_number = 0
-
         offset_number = datas.get('Offset')
         limit_number = datas.get('Limit')
         total_number = datas.get('TotalResults')
-
+        
         for i in range(limit_number):
             item = WebscrapyItem()
             results = datas.get('Results', [])
-
             try:
                 item['review_id'] = results[i].get('Id', 'N/A')
                 item['product_website'] = 'bunnings_en'
@@ -122,7 +113,6 @@ class SpiderSpider(scrapy.Spider):
                 item['customer_review'] = results[i].get('ReviewText', 'N/A')
                 item['customer_support'] = results[i].get('TotalPositiveFeedbackCount', 'N/A')
                 item['customer_disagree'] = results[i].get('TotalNegativeFeedbackCount', 'N/A')
-
                 yield item
             except Exception as e:
                 break
